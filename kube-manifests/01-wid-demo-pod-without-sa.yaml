@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wid-demo-without-sa
+  namespace: wid-kns
+spec:
+  containers:
+  - image: google/cloud-sdk:slim
+  # we are using this sdk because gcloud cli will be installed.
+    name: wid-demo-without-sa
+    command: ["sleep","infinity"]
+  #serviceAccountName: wid-ksa
+  # thus it will use the default SA
+  nodeSelector:
+    iam.gke.io/gke-metadata-server-enabled: "true"
+    # pod needs to be on a node where the GKE MDS is enabled
