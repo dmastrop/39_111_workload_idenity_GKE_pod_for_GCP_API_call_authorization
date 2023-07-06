@@ -1,0 +1,370 @@
+## Step-02: Verify if Workload Identity Setting is enabled for GKE Cluster
+- Go to Kubernetes Engine -> Clusters -> standard-cluster-private-1 -> DETAILS Tab
+- In Security -> Workload Identity  -> SHOULD BE IN ENABLED STATE
+
+
+
+ 
+
+
+Note the Workload identity namespace project7-390220.svc.id.goog
+
+project7-390220
+
+
+## Step-03: Create GCP IAM Service Account
+```t
+# List IAM Service Accounts
+gcloud iam service-accounts list
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % gcloud iam service-accounts list -
+-project project7-390220
+DISPLAY NAME                            EMAIL                                               DISABLED
+Compute Engine default service account  993623504729-compute@developer.gserviceaccount.com  False
+
+
+Updates are available for some Google Cloud CLI components.  To install them,
+please run:
+  $ gcloud components update
+
+Mine is missing the App Engine default SA
+
+
+
+
+
+
+
+
+
+# List Google Cloud Projects
+gcloud projects list
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % gcloud projects list
+PROJECT_ID       NAME      PROJECT_NUMBER
+project7-390220  project7  993623504729
+
+Observation: 
+1. Get the PROJECT_ID for your current project
+2. Replace GSA_PROJECT_ID with PROJECT_ID for your current project
+
+
+
+
+
+# Create GCP IAM Service Account
+gcloud iam service-accounts create GSA_NAME --project=GSA_PROJECT_ID
+GSA_NAME: the name of the new IAM service account.
+GSA_PROJECT_ID: the project ID of the Google Cloud project for your IAM service account.
+GSA_PROJECT==PROJECT_ID
+
+
+
+
+# Replace GSA_NAME and GSA_PROJECT
+gcloud iam service-accounts create wid-gcpiam-sa --project=kdaida123
+
+gcloud iam service-accounts create wid-gcpiam-sa --project=project7-390220
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % gcloud iam service-accounts create wid-gcpiam-sa --project=project7-390220
+Created service account [wid-gcpiam-sa].
+
+
+Watch for white spaces 
+
+
+
+# List IAM Service Accounts
+gcloud iam service-accounts list
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % gcloud iam service-accounts list --project project7-390220
+DISPLAY NAME                            EMAIL                                                  DISABLED
+                                        wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com  False
+Compute Engine default service account  993623504729-compute@developer.gserviceaccount.com     False
+
+Note: display name is blank but that is ok.
+wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com
+ 
+
+
+
+
+
+
+## Step-04: Add IAM Roles to GCP IAM Service Account
+- We are giving `"roles/compute.viewer"` permissions to IAM Service Account. 
+
+
+These are the 3 nodes that we will list at the completion of this project from the pod with the wid
+
+
+ 
+
+
+
+
+
+
+
+
+- From Kubernetes Pod, we are going to list the compute instances.
+
+- With the help of the `Google IAM Service account` and `Kubernetes Service Account`, access for Kubernetes Pod from GKE cluster should be successful for listing the google computing instances. 
+
+
+
+
+
+
+# Add IAM Roles to GCP IAM Service Account
+gcloud projects add-iam-policy-binding PROJECT_ID \
+    --member "serviceAccount:GSA_NAME@GSA_PROJECT_ID.iam.gserviceaccount.com" \
+    --role "ROLE_NAME"
+PROJECT_ID: your Google Cloud project ID.
+GSA_NAME: the name of your IAM service account.
+GSA_PROJECT_ID: the project ID of the Google Cloud project of your IAM service account.
+GSA_PROJECT_ID==PROJECT_ID
+ROLE_NAME: the IAM role to assign to your service account, like roles/spanner.viewer.
+
+
+
+# Replace PROJECT_ID, GSA_NAME, GSA_PROJECT_ID, ROLE_NAME
+gcloud projects add-iam-policy-binding kdaida123 \
+    --member "serviceAccount:wid-gcpiam-sa@kdaida123.iam.gserviceaccount.com" \
+    --role "roles/compute.viewer" 
+
+
+gcloud projects add-iam-policy-binding project7-390220 \
+    --member "serviceAccount:wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com" \
+    --role "roles/compute.viewer"
+
+Watch for white spaces in the quotes
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % gcloud projects add-iam-policy-binding project7-390220 \
+    --member "serviceAccount:wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com" \
+    --role "roles/compute.viewer"
+
+Updated IAM policy for project [project7-390220].
+bindings:
+- members:
+  - serviceAccount:service-993623504729@compute-system.iam.gserviceaccount.com
+  role: roles/compute.serviceAgent
+- members:
+  - serviceAccount:wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com
+  role: roles/compute.viewer
+- members:
+  - serviceAccount:service-993623504729@container-engine-robot.iam.gserviceaccount.com
+  role: roles/container.serviceAgent
+- members:
+  - serviceAccount:service-993623504729@containerregistry.iam.gserviceaccount.com
+  role: roles/containerregistry.ServiceAgent
+- members:
+  - serviceAccount:993623504729-compute@developer.gserviceaccount.com
+  - serviceAccount:993623504729@cloudservices.gserviceaccount.com
+  role: roles/editor
+- members:
+  - serviceAccount:service-993623504729@cloud-filer.iam.gserviceaccount.com
+  role: roles/file.serviceAgent
+- members:
+  - user:dave.mastropolo@gmail.com
+  role: roles/owner
+- members:
+  - serviceAccount:service-993623504729@gcp-sa-pubsub.iam.gserviceaccount.com
+  role: roles/pubsub.serviceAgent
+- members:
+  - serviceAccount:service-993623504729@service-networking.iam.gserviceaccount.com
+  role: roles/servicenetworking.serviceAgent
+etag: BwX_2JwdyFg=
+version: 1
+
+
+
+
+
+
+
+
+Create the k8s (GKE) namespace and SA. 
+
+## Step-05: Create Kubernetes (GKE) Namepsace and Service Account
+```t
+# Create Kubernetes Namespace
+kubectl create namespace <NAMESPACE>
+kubectl create namespace wid-kns
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl create namespace wid-kns
+namespace/wid-kns created
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl get ns
+NAME                       STATUS   AGE
+default                    Active   8d
+gke-managed-filestorecsi   Active   8d
+kube-node-lease            Active   8d
+kube-public                Active   8d
+kube-system                Active   8d
+wid-kns                    Active   4s
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl get namespace
+NAME                       STATUS   AGE
+default                    Active   8d
+gke-managed-filestorecsi   Active   8d
+kube-node-lease            Active   8d
+kube-public                Active   8d
+kube-system                Active   8d
+wid-kns                    Active   18s
+
+
+
+# Create (GKE)Service Account in the GKE namespace
+kubectl create serviceaccount <KSA_NAME>  --namespace <NAMESPACE>
+kubectl create serviceaccount wid-ksa  --namespace wid-kns
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl create serviceaccount wid-ksa  --namespace wid-kns
+serviceaccount/wid-ksa created
+
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl get sa --namespace wid-kns
+
+NAME      SECRETS   AGE
+default   0         2m40s
+wid-ksa   0         17s
+
+
+
+
+
+
+
+
+
+Bind the GCP IAM SA to the GKE SA via IAM policy binding
+
+
+
+## Step-06: Associate GCP IAM Service Account with Kubernetes Service Account
+- Allow the Kubernetes service account to impersonate the IAM service account by adding an IAM policy binding between the two service accounts.
+- This binding allows the Kubernetes service account to act as the IAM service account.
+
+
+
+
+# Associate GCP IAM Service Account with Kubernetes Service Account
+gcloud iam service-accounts add-iam-policy-binding GSA_NAME@GSA_PROJECT_ID.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:PROJECT_ID.svc.id.goog[NAMESPACE/KSA_NAME]"
+
+# Replace GSA_NAME, GSA_PROJECT_ID, PROJECT_ID, NAMESPACE, KSA_NAME
+gcloud iam service-accounts add-iam-policy-binding wid-gcpiam-sa@kdaida123.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:kdaida123.svc.id.goog[wid-kns/wid-ksa]"
+
+
+•	wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com  <<< this is the IAM GCP SA that we created
+•	project7-390220.svc.id.goog   <<< this is the workload identity namespace (not the GKE created namespace)
+•	wid-kns is the GKE namespace and wid-ksa is the GKE Service Account
+•	The binding between the two is created using the project7-390220.svc.id.goog workload namespace
+
+gcloud iam service-accounts add-iam-policy-binding wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:project7-390220.svc.id.goog[wid-kns/wid-ksa]"
+
+I had to add my project. It keeps defaulting to my previous project6
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % gcloud iam service-accounts add-iam-policy-binding wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:project7-390220.svc.id.goog[wid-kns/wid-ksa]"
+
+ERROR: (gcloud.iam.service-accounts.add-iam-policy-binding) NOT_FOUND: Service account projects/project-06-389918/serviceAccounts/wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com does not exist.
+projects/project-06-389918/serviceAccounts/wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com
+
+
+gcloud iam service-accounts add-iam-policy-binding projects/project7-390220/serviceAccounts/wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:project7-390220.svc.id.goog[wid-kns/wid-ksa]"
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % gcloud iam service-accounts add-iam-policy-binding projects/project7-390220/serviceAccounts/wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:project7-390220.svc.id.goog[wid-kns/wid-ksa]"
+
+Updated IAM policy for serviceAccount [wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com].
+bindings:
+- members:
+  - serviceAccount:project7-390220.svc.id.goog[wid-kns/wid-ksa]
+  role: roles/iam.workloadIdentityUser
+etag: BwX_2RPWPjQ=
+version: 1
+
+Watch for whitespaces inside the quotes.
+
+
+
+
+
+
+
+
+
+
+
+Annotate GKE SA with the GCP IAM SA email address to complete the binding.
+
+## Step-07: Annotate Kubernetes Service Account with GCP IAM SA email Address
+- Annotate the Kubernetes service account with the email address of the IAM service account.
+
+
+# Annotate Kubernetes Service Account with GCP IAM SA email Address
+kubectl annotate serviceaccount KSA_NAME \
+    --namespace NAMESPACE \
+    iam.gke.io/gcp-service-account=GSA_NAME@GSA_PROJECT_ID.iam.gserviceaccount.com
+
+# Replace KSA_NAME, NAMESPACE, GSA_NAME, GSA_PROJECT_ID
+kubectl annotate serviceaccount wid-ksa \
+    --namespace wid-kns \
+    iam.gke.io/gcp-service-account=wid-gcpiam-sa@kdaida123.iam.gserviceaccount.com
+
+
+
+
+
+kubectl annotate serviceaccount wid-ksa \
+    --namespace wid-kns \
+    iam.gke.io/gcp-service-account=projects/project7-390220/serviceAccounts/wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com
+
+
+kubectl annotate serviceaccount wid-ksa \
+    --namespace wid-kns \
+    iam.gke.io/gcp-service-account=wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl annotate serviceaccount wid-ksa \
+    --namespace wid-kns \
+    iam.gke.io/gcp-service-account=wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com
+
+serviceaccount/wid-ksa annotated
+
+
+
+
+# Describe Kubernetes (GKE) Service Account
+kubectl describe sa wid-ksa -n wid-kns
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl get sa -n wid-kns
+NAME      SECRETS   AGE
+default   0         38m
+wid-ksa   0         36m
+
+
+davemastropolo@Margarets-MacBook-Air 39_111_Workload_Identity_pod_for_GCP_API_calls % kubectl describe sa wid-ksa -n wid-kns
+Name:                wid-ksa
+Namespace:           wid-kns
+Labels:              <none>
+Annotations:         iam.gke.io/gcp-service-account: wid-gcpiam-sa@project7-390220.iam.gserviceaccount.com
+Image pull secrets:  <none>
+Mountable secrets:   <none>
+Tokens:              <none>
+Events:              <none>
